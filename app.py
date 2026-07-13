@@ -1,40 +1,24 @@
-import gspread
-from google.oauth2.service_account import Credentials
 import pandas as pd
-
-
-# رابط الشيت ثابت
-sheet_url = "https://docs.google.com/spreadsheets/d/1o3_NF6_BRJ-UpD7GBH9eqs6Uf0JivV7P78xEZNyiPwo/edit?gid=0#gid=0"
-
-
-# Google API
-scope = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
-
-
 import streamlit as st
 
-creds = Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"],
-    scopes=scope
+
+# عنوان الصفحة
+st.set_page_config(
+    page_title="Fleet Dashboard",
+    page_icon="🚚",
+    layout="wide"
 )
-)
 
 
-client = gspread.authorize(creds)
+# قراءة ملف Excel
+file_path = ""D:\USERS\01041878\Downloads\جدول بيانات بدون عنوان.xlsx""
 
+try:
+    df = pd.read_excel(file_path)
 
-sheet = client.open_by_url(sheet_url)
-
-worksheet = sheet.sheet1
-
-
-data = worksheet.get_all_records()
-
-
-df = pd.DataFrame(data)
+except FileNotFoundError:
+    st.error("لم يتم العثور على ملف Excel. تأكد أن الملف موجود بجانب app.py")
+    st.stop()
 
 
 # تنظيف أسماء الأعمدة
@@ -42,4 +26,38 @@ df.columns = (
     df.columns
     .astype(str)
     .str.strip()
+)
+
+
+# تنظيف البيانات
+df = df.dropna(how="all")
+
+# عدد السيارات
+total_rows = len(df)
+
+
+# عرض Dashboard بسيط
+st.title("🚚 Fleet Management Dashboard")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric(
+        "إجمالي السجلات",
+        total_rows
+    )
+
+with col2:
+    st.metric(
+        "عدد الأعمدة",
+        len(df.columns)
+    )
+
+
+# عرض البيانات
+st.subheader("بيانات الأسطول")
+
+st.dataframe(
+    df,
+    use_container_width=True
 )
