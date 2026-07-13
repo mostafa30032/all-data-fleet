@@ -26,7 +26,7 @@ st.title("🚚 Fleet License & Renewal Dashboard")
 # ==============================
 
 sheet_url = st.text_input(
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ41VbxaO4yjj852WgbOJZNQYBMaYOXVniixapXiZOEK9gGl3a4RVGX8pRDhatDZ5XT7baMj3bIwF-1/pub?gid=0&single=true&output=csv"
+    "https://docs.google.com/spreadsheets/d/1o3_NF6_BRJ-UpD7GBH9eqs6Uf0JivV7P78xEZNyiPwo/edit?gid=0#gid=0"
 )
 
 
