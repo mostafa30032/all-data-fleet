@@ -11,9 +11,7 @@ st.set_page_config(
 
 
 # قراءة ملف Excel
-file_path = ""D:\USERS\01041878\Downloads\جدول بيانات بدون عنوان.xlsx""
-
-try:
+file_path = "D:/USERS/01041878/Downloads/جدول بيانات بدون عنوان.xlsx"
     df = pd.read_excel(file_path)
 
 except FileNotFoundError:
