@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 
 
-# عنوان الصفحة
+# إعداد الصفحة
 st.set_page_config(
     page_title="Fleet Dashboard",
     page_icon="🚚",
@@ -10,12 +10,20 @@ st.set_page_config(
 )
 
 
+# عنوان الداشبورد
+st.title("🚚 Fleet Management Dashboard")
+
+
+# اسم ملف Excel الموجود مع app.py
+file_path = "جدول بيانات بدون عنوان.xlsx"
+
+
 # قراءة ملف Excel
-file_path = "D:/USERS/01041878/Downloads/جدول بيانات بدون عنوان.xlsx"
+try:
     df = pd.read_excel(file_path)
 
 except FileNotFoundError:
-    st.error("لم يتم العثور على ملف Excel. تأكد أن الملف موجود بجانب app.py")
+    st.error("❌ ملف Excel غير موجود. ارفع الملف بجانب app.py في GitHub")
     st.stop()
 
 
@@ -27,33 +35,32 @@ df.columns = (
 )
 
 
-# تنظيف البيانات
+# حذف الصفوف الفارغة
 df = df.dropna(how="all")
 
-# عدد السيارات
-total_rows = len(df)
 
+# إحصائيات بسيطة
+total_records = len(df)
+total_columns = len(df.columns)
 
-# عرض Dashboard بسيط
-st.title("🚚 Fleet Management Dashboard")
 
 col1, col2 = st.columns(2)
 
 with col1:
     st.metric(
         "إجمالي السجلات",
-        total_rows
+        total_records
     )
 
 with col2:
     st.metric(
         "عدد الأعمدة",
-        len(df.columns)
+        total_columns
     )
 
 
 # عرض البيانات
-st.subheader("بيانات الأسطول")
+st.subheader("📊 بيانات الأسطول")
 
 st.dataframe(
     df,
