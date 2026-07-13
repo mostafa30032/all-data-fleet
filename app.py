@@ -1,5 +1,5 @@
 import streamlit as st
-from streamlit_option_menu import option_menu
+import pandas as pd
 
 st.set_page_config(
     page_title="Fleet Management System",
@@ -7,48 +7,42 @@ st.set_page_config(
     layout="wide"
 )
 
-# Sidebar
-with st.sidebar:
-    selected = option_menu(
-        "Fleet Management",
-        [
-            "Dashboard",
-            "Vehicles",
-            "GPS",
-            "Fuel",
-            "Licence",
-            "Insurance",
-            "Reports",
-            "Settings"
-        ],
-        icons=[
-            "speedometer2",
-            "truck",
-            "geo-alt",
-            "fuel-pump",
-            "file-earmark-text",
-            "shield-check",
-            "bar-chart",
-            "gear"
-        ],
-        menu_icon="list",
-        default_index=0,
-    )
+# ==========================
+# Google Sheet URL
+# ==========================
 
-# Main Page
-st.title("🚗 Fleet Management System")
+GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ41VbxaO4yjj852WgbOJZNQYBMaYOXVniixapXiZOEK9gGl3a4RVGX8pRDhatDZ5XT7baMj3bIwF-1/pubhtml"
 
-st.markdown("---")
+# ==========================
+# Load Data
+# ==========================
 
-if selected == "Dashboard":
-    col1, col2, col3, col4 = st.columns(4)
+@st.cache_data(ttl=300)
+def load_data():
 
-    col1.metric("Total Vehicles", "365")
-    col2.metric("Active", "320")
-    col3.metric("Expired Licence", "12")
-    col4.metric("Insurance Expired", "5")
+    df = pd.read_csv(GOOGLE_SHEET_URL)
 
-    st.write("")
-    st.subheader("Dashboard")
+    df.columns = df.columns.str.strip()
 
-    st.info("Fleet Dashboard will be here.")
+    return df
+
+
+try:
+    df = load_data()
+
+except Exception as e:
+    st.error("Unable to connect to Google Sheet")
+    st.error(e)
+    st.stop()
+
+# ==========================
+# Dashboard
+# ==========================
+
+st.title("🚗 Fleet Management Dashboard")
+
+st.success("Connected Successfully")
+
+st.write(df)
+
+st.write("Total Vehicles :", len(df))
