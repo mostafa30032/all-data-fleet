@@ -1,72 +1,151 @@
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+from datetime import datetime
 
 
-# إعداد الصفحة
+# ======================
+# Page Setup
+# ======================
+
 st.set_page_config(
-    page_title="Fleet Dashboard",
-    page_icon="🚚",
+    page_title="Fleet Licensing Dashboard",
+    page_icon="🚗",
     layout="wide"
 )
 
 
-# قراءة ملف Excel
-file_path = "جدول بيانات بدون عنوان.xlsx"
+# ======================
+# Read Excel
+# ======================
 
-df = pd.read_excel(file_path)
+file_path = "licenses.xlsx"
+
+try:
+    df = pd.read_excel(file_path)
+
+except:
+    st.error("ملف التراخيص غير موجود بجانب app.py")
+    st.stop()
 
 
-# تنظيف الأعمدة
+
+# ======================
+# Clean Columns
+# ======================
+
 df.columns = (
     df.columns
     .astype(str)
     .str.strip()
+    .str.lower()
 )
 
 
-# تنظيف البيانات
+
 df = df.dropna(how="all")
 
 
-# عنوان الصفحة
-st.title("🚚 Fleet Management Dashboard")
-st.markdown("---")
+
+# ======================
+# Convert Dates
+# ======================
+
+date_columns = [
+    "license expiry",
+    "expiry date",
+    "end date",
+    "expiration"
+]
+
+
+for col in date_columns:
+    if col in df.columns:
+        df[col] = pd.to_datetime(
+            df[col],
+            errors="coerce"
+        )
+
 
 
 # ======================
-# Sidebar Filters
+# Title
+# ======================
+
+st.title("🚗 Fleet Licensing Management Dashboard")
+
+st.markdown("---")
+
+
+
+# ======================
+# Sidebar
 # ======================
 
 st.sidebar.header("🔎 Filters")
 
 
-# فلتر المنطقة
 if "area" in df.columns:
 
     areas = df["area"].dropna().unique()
 
-    selected_area = st.sidebar.multiselect(
+    area = st.sidebar.multiselect(
         "Select Area",
         areas,
         default=areas
     )
 
-    df = df[df["area"].isin(selected_area)]
+    df = df[df["area"].isin(area)]
 
 
-# فلتر نوع السيارة
+
 if "vehicle type" in df.columns:
 
     types = df["vehicle type"].dropna().unique()
 
-    selected_type = st.sidebar.multiselect(
+    vehicle = st.sidebar.multiselect(
         "Vehicle Type",
         types,
         default=types
     )
 
-    df = df[df["vehicle type"].isin(selected_type)]
+    df = df[
+        df["vehicle type"].isin(vehicle)
+    ]
+
+
+
+# ======================
+# License Status
+# ======================
+
+
+today = pd.Timestamp.today()
+
+
+expiry_col = None
+
+
+for c in date_columns:
+    if c in df.columns:
+        expiry_col = c
+        break
+
+
+
+if expiry_col:
+
+
+    df["License Status"] = df[expiry_col].apply(
+        lambda x:
+        "Expired"
+        if x < today
+        else
+        "Expire Soon"
+        if (x-today).days <= 30
+        else
+        "Valid"
+    )
 
 
 
@@ -74,47 +153,66 @@ if "vehicle type" in df.columns:
 # KPI Cards
 # ======================
 
-col1, col2, col3, col4 = st.columns(4)
+c1,c2,c3,c4 = st.columns(4)
 
 
-with col1:
+
+with c1:
+
     st.metric(
         "🚗 Total Vehicles",
-        df["platenumber"].nunique()
-        if "platenumber" in df.columns
-        else len(df)
+        df.shape[0]
     )
 
 
-with col2:
-    st.metric(
-        "🛣 Total KM",
-        f"{df['km system'].sum():,.0f}"
-        if "km system" in df.columns
-        else "N/A"
-    )
+with c2:
+
+    if expiry_col:
+
+        valid = (
+            df["License Status"]
+            =="Valid"
+        ).sum()
+
+        st.metric(
+            "✅ Valid Licenses",
+            valid
+        )
 
 
-with col3:
-    st.metric(
-        "⛽ Total Fuel",
-        f"{df['liters'].sum():,.0f} L"
-        if "liters" in df.columns
-        else "N/A"
-    )
+with c3:
+
+    if expiry_col:
+
+        expired = (
+            df["License Status"]
+            =="Expired"
+        ).sum()
+
+        st.metric(
+            "🔴 Expired",
+            expired
+        )
 
 
-with col4:
-    st.metric(
-        "📊 Average KM/L",
-        round(df["km/liter"].mean(),2)
-        if "km/liter" in df.columns
-        else "N/A"
-    )
+with c4:
+
+    if expiry_col:
+
+        soon = (
+            df["License Status"]
+            =="Expire Soon"
+        ).sum()
+
+        st.metric(
+            "🟡 Expire Soon",
+            soon
+        )
 
 
 
 st.markdown("---")
+
 
 
 # ======================
@@ -122,24 +220,35 @@ st.markdown("---")
 # ======================
 
 
-col1, col2 = st.columns(2)
+col1,col2 = st.columns(2)
 
 
-# Fuel Consumption
-if "vehicle type" in df.columns and "liters" in df.columns:
 
-    fuel_chart = (
-        df.groupby("vehicle type")["liters"]
-        .sum()
+# Status Chart
+
+if "License Status" in df.columns:
+
+
+    status = (
+        df["License Status"]
+        .value_counts()
         .reset_index()
     )
 
-    fig = px.bar(
-        fuel_chart,
-        x="vehicle type",
-        y="liters",
-        title="⛽ Fuel Consumption By Vehicle Type"
+
+    status.columns=[
+        "Status",
+        "Count"
+    ]
+
+
+    fig = px.pie(
+        status,
+        names="Status",
+        values="Count",
+        title="License Status"
     )
+
 
     col1.plotly_chart(
         fig,
@@ -148,21 +257,25 @@ if "vehicle type" in df.columns and "liters" in df.columns:
 
 
 
-# KM By Area
-if "area" in df.columns and "km system" in df.columns:
+# Area Analysis
 
-    km_chart = (
-        df.groupby("area")["km system"]
-        .sum()
-        .reset_index()
+if "area" in df.columns:
+
+
+    area_chart = (
+        df.groupby("area")
+        .size()
+        .reset_index(
+            name="Vehicles"
+        )
     )
 
 
-    fig2 = px.pie(
-        km_chart,
-        names="area",
-        values="km system",
-        title="🗺 KM Distribution By Area"
+    fig2 = px.bar(
+        area_chart,
+        x="area",
+        y="Vehicles",
+        title="Vehicles By Area"
     )
 
 
@@ -174,45 +287,38 @@ if "area" in df.columns and "km system" in df.columns:
 
 
 # ======================
-# Top Vehicles
+# Expiring Vehicles Table
 # ======================
 
-st.subheader("🔥 Top 10 Vehicles By Fuel Consumption")
+st.subheader(
+    "⚠️ Vehicles Need Action"
+)
 
 
-if "platenumber" in df.columns and "liters" in df.columns:
-
-    top_vehicle = (
-        df.groupby("platenumber")["liters"]
-        .sum()
-        .sort_values(
-            ascending=False
-        )
-        .head(10)
-        .reset_index()
-    )
+if "License Status" in df.columns:
 
 
-    fig3 = px.bar(
-        top_vehicle,
-        x="platenumber",
-        y="liters",
-        title="Highest Fuel Consuming Vehicles"
-    )
+    action = df[
+        df["License Status"]
+        != "Valid"
+    ]
 
 
-    st.plotly_chart(
-        fig3,
+    st.dataframe(
+        action,
         use_container_width=True
     )
 
 
 
 # ======================
-# Data Table
+# Full Data
 # ======================
 
-st.subheader("📋 Fleet Data")
+st.subheader(
+    "📋 All Licensing Data"
+)
+
 
 st.dataframe(
     df,
