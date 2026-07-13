@@ -1,13 +1,15 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
+import gspread
+
+from google.oauth2.service_account import Credentials
 from io import BytesIO
 
 
-# ==========================
-# PAGE CONFIG
-# ==========================
+# ==============================
+# PAGE SETTINGS
+# ==============================
 
 st.set_page_config(
     page_title="Fleet License Dashboard",
@@ -16,19 +18,12 @@ st.set_page_config(
 )
 
 
-# ==========================
-# TITLE
-# ==========================
-
-st.title("🚚 Fleet License & Vehicle Dashboard")
-st.markdown(
-    "Automatic analysis for vehicle licenses, expiry dates and renewals"
-)
+st.title("🚚 Fleet License & Renewal Dashboard")
 
 
-# ==========================
-# GOOGLE SHEET LINK
-# ==========================
+# ==============================
+# GOOGLE SHEET CONNECTION
+# ==============================
 
 sheet_url = st.text_input(
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ41VbxaO4yjj852WgbOJZNQYBMaYOXVniixapXiZOEK9gGl3a4RVGX8pRDhatDZ5XT7baMj3bIwF-1/pub?gid=0&single=true&output=csv"
@@ -40,38 +35,52 @@ if sheet_url:
 
     try:
 
-        sheet_id = sheet_url.split("/d/")[1].split("/")[0]
+        scope = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
 
-        csv_url = (
-            f"https://docs.google.com/spreadsheets/d/"
-            f"{sheet_id}/export?format=csv"
+
+        creds = Credentials.from_service_account_file(
+            "credentials.json",
+            scopes=scope
         )
 
 
-        df = pd.read_csv(csv_url)
+        client = gspread.authorize(creds)
+
+
+        sheet = client.open_by_url(sheet_url)
+
+        worksheet = sheet.sheet1
+
+
+        data = worksheet.get_all_records()
+
+
+        df = pd.DataFrame(data)
+
 
 
     except Exception as e:
 
-        st.error(
-            "Cannot read sheet. Check link permission."
-        )
-
+        st.error(e)
         st.stop()
 
 
 
-    # ==========================
-    # CLEAN COLUMNS
-    # ==========================
+    # ==============================
+    # CLEAN DATA
+    # ==============================
 
     df.columns = (
         df.columns
+        .astype(str)
         .str.strip()
     )
 
 
-    # Convert date
+    # تحويل التاريخ
 
     df["licence Expiry Date"] = pd.to_datetime(
         df["licence Expiry Date"],
@@ -79,32 +88,35 @@ if sheet_url:
     )
 
 
+
     today = pd.Timestamp.today()
 
 
 
-    # ==========================
-    # LICENSE ANALYSIS
-    # ==========================
-
     df["Days Remaining"] = (
-        df["licence Expiry Date"] - today
+        df["licence Expiry Date"]
+        - today
     ).dt.days
 
 
 
-    def license_status(x):
+    # ==============================
+    # LICENSE STATUS ANALYSIS
+    # ==============================
 
-        if pd.isna(x):
+
+    def status(days):
+
+        if pd.isna(days):
             return "No Date"
 
-        elif x < 0:
+        elif days < 0:
             return "Expired"
 
-        elif x <= 30:
+        elif days <= 30:
             return "Renew This Month"
 
-        elif x <= 60:
+        elif days <= 60:
             return "Next Month"
 
         else:
@@ -112,39 +124,41 @@ if sheet_url:
 
 
 
-    df["License Analysis"] = (
+    df["License Status Analysis"] = (
         df["Days Remaining"]
-        .apply(license_status)
+        .apply(status)
     )
 
 
 
-    # ==========================
+    # ==============================
     # KPI
-    # ==========================
+    # ==============================
+
 
     total = len(df)
 
+
     expired = len(
         df[
-            df["License Analysis"]
+            df["License Status Analysis"]
             =="Expired"
         ]
     )
 
 
-    renew = len(
+    renew_month = len(
         df[
-            df["License Analysis"]
+            df["License Status Analysis"]
             =="Renew This Month"
         ]
     )
 
 
-    active = len(
+    upcoming = len(
         df[
-            df["License Analysis"]
-            =="Active"
+            df["License Status Analysis"]
+            =="Next Month"
         ]
     )
 
@@ -167,13 +181,13 @@ if sheet_url:
 
     c3.metric(
         "Renew This Month",
-        renew
+        renew_month
     )
 
 
     c4.metric(
-        "Active License",
-        active
+        "Upcoming",
+        upcoming
     )
 
 
@@ -182,9 +196,9 @@ if sheet_url:
 
 
 
-    # ==========================
+    # ==============================
     # FILTERS
-    # ==========================
+    # ==============================
 
 
     col1,col2,col3 = st.columns(3)
@@ -192,90 +206,79 @@ if sheet_url:
 
     with col1:
 
-        area = st.multiselect(
+        areas = st.multiselect(
             "Area",
-            df["Area"]
-            .dropna()
-            .unique()
+            df["Area"].dropna().unique()
         )
 
 
     with col2:
 
-        vehicle = st.multiselect(
+        types = st.multiselect(
             "Vehicle Type",
-            df["Vehicle Type"]
-            .dropna()
-            .unique()
+            df["Vehicle Type"].dropna().unique()
         )
 
 
     with col3:
 
-        branch = st.multiselect(
+        branches = st.multiselect(
             "Branch",
-            df["Branch"]
-            .dropna()
-            .unique()
+            df["Branch"].dropna().unique()
         )
 
 
 
-    filtered = df.copy()
+    result = df.copy()
 
 
 
-    if area:
-        filtered = filtered[
-            filtered["Area"]
-            .isin(area)
+    if areas:
+        result = result[
+            result["Area"].isin(areas)
         ]
 
 
-    if vehicle:
-        filtered = filtered[
-            filtered["Vehicle Type"]
-            .isin(vehicle)
+    if types:
+        result = result[
+            result["Vehicle Type"].isin(types)
         ]
 
 
-    if branch:
-        filtered = filtered[
-            filtered["Branch"]
-            .isin(branch)
+    if branches:
+        result = result[
+            result["Branch"].isin(branches)
         ]
 
 
 
-    # ==========================
-    # CHART STATUS
-    # ==========================
+    # ==============================
+    # STATUS CHART
+    # ==============================
 
     st.subheader(
         "License Status"
     )
 
 
-    status = (
-        filtered[
-            "License Analysis"
-        ]
+    status_chart = (
+        result["License Status Analysis"]
         .value_counts()
         .reset_index()
     )
 
 
-    status.columns=[
+    status_chart.columns=[
         "Status",
         "Count"
     ]
 
 
     fig = px.pie(
-        status,
+        status_chart,
         names="Status",
         values="Count",
-        hole=.4
+        hole=0.4
     )
 
 
@@ -286,17 +289,18 @@ if sheet_url:
 
 
 
-    # ==========================
+    # ==============================
     # AREA ANALYSIS
-    # ==========================
+    # ==============================
+
 
     st.subheader(
         "Vehicles By Area"
     )
 
 
-    area_data = (
-        filtered
+    area = (
+        result
         .groupby("Area")
         ["Vehicle ID"]
         .count()
@@ -304,7 +308,7 @@ if sheet_url:
     )
 
 
-    area_data.columns=[
+    area.columns=[
         "Area",
         "Vehicles"
     ]
@@ -312,7 +316,7 @@ if sheet_url:
 
 
     fig2 = px.bar(
-        area_data,
+        area,
         x="Area",
         y="Vehicles"
     )
@@ -325,22 +329,22 @@ if sheet_url:
 
 
 
-    # ==========================
-    # VEHICLE TYPE
-    # ==========================
+    # ==============================
+    # VEHICLE TYPE ANALYSIS
+    # ==============================
 
 
     st.subheader(
-        "Vehicle Type Analysis"
+        "Vehicle Type Renewal Analysis"
     )
 
 
-    type_data = (
-        filtered
+    vehicle_analysis = (
+        result
         .groupby(
             [
                 "Vehicle Type",
-                "License Analysis"
+                "License Status Analysis"
             ]
         )
         ["Vehicle ID"]
@@ -350,10 +354,10 @@ if sheet_url:
 
 
     fig3 = px.bar(
-        type_data,
+        vehicle_analysis,
         x="Vehicle Type",
         y="Vehicle ID",
-        color="License Analysis",
+        color="License Status Analysis",
         barmode="group"
     )
 
@@ -365,18 +369,18 @@ if sheet_url:
 
 
 
-    # ==========================
+    # ==============================
     # ALERT TABLE
-    # ==========================
+    # ==============================
 
 
     st.subheader(
-        "⚠️ License Renewal Alerts"
+        "⚠️ Renewal Alerts"
     )
 
 
-    alerts = filtered[
-        filtered["License Analysis"]
+    alerts = result[
+        result["License Status Analysis"]
         .isin(
             [
                 "Expired",
@@ -387,16 +391,16 @@ if sheet_url:
     ]
 
 
-
     st.dataframe(
         alerts[
             [
                 "Vehicle ID",
                 "Area",
                 "Vehicle Type",
+                "Branch",
                 "licence Expiry Date",
                 "Days Remaining",
-                "License Analysis"
+                "License Status Analysis"
             ]
         ],
         use_container_width=True
@@ -404,12 +408,13 @@ if sheet_url:
 
 
 
-    # ==========================
-    # DOWNLOAD EXCEL
-    # ==========================
+    # ==============================
+    # EXPORT REPORT
+    # ==============================
 
 
     output = BytesIO()
+
 
     with pd.ExcelWriter(
         output,
@@ -424,7 +429,7 @@ if sheet_url:
 
 
     st.download_button(
-        "Download Renewal Report",
+        "📥 Download Renewal Report",
         output.getvalue(),
-        "License_Report.xlsx"
+        file_name="License_Renewal_Report.xlsx"
     )
