@@ -2,47 +2,31 @@ import streamlit as st
 import pandas as pd
 
 st.set_page_config(
-    page_title="Fleet Management System",
+    page_title="Fleet Dashboard",
     page_icon="🚗",
     layout="wide"
 )
 
-# ==========================
-# Google Sheet URL
-# ==========================
+URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ41VbxaO4yjj852WgbOJZNQYBMaYOXVniixapXiZOEK9gGl3a4RVGX8pRDhatDZ5XT7baMj3bIwF-1/pub?gid=0&single=true&output=csv"
 
-GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ41VbxaO4yjj852WgbOJZNQYBMaYOXVniixapXiZOEK9gGl3a4RVGX8pRDhatDZ5XT7baMj3bIwF-1/pubhtml"
-
-# ==========================
-# Load Data
-# ==========================
-
-@st.cache_data(ttl=300)
+@st.cache_data
 def load_data():
 
-    df = pd.read_csv(GOOGLE_SHEET_URL)
+    df = pd.read_csv(
+        URL,
+        engine="python",
+        encoding="utf-8"
+    )
 
     df.columns = df.columns.str.strip()
 
     return df
 
 
-try:
-    df = load_data()
-
-except Exception as e:
-    st.error("Unable to connect to Google Sheet")
-    st.error(e)
-    st.stop()
-
-# ==========================
-# Dashboard
-# ==========================
+df = load_data()
 
 st.title("🚗 Fleet Management Dashboard")
 
-st.success("Connected Successfully")
+st.success("Google Sheet Connected Successfully")
 
-st.write(df)
-
-st.write("Total Vehicles :", len(df))
+st.dataframe(df, use_container_width=True)
