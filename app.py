@@ -19,7 +19,7 @@ st.set_page_config(
 # Read Excel
 # ======================
 
-file_path = "licenses.xlsx"
+file_path = ""D:\USERS\01041878\Downloads\جدول بيانات بدون عنوان.xlsx""
 
 try:
     df = pd.read_excel(file_path)
